@@ -1,5 +1,4 @@
-use crate::util::{Hash32Bytes, write_merkle_proof,encode_hash, MerkleProof, hash_leaf};
-use sha2::{Sha256, Digest};
+use crate::util::{Hash32Bytes, write_merkle_proof,encode_hash, MerkleProof, hash_leaf, hash_internal};
 
 fn gen_leaves_for_merkle_tree(num_leaves: usize) -> Vec<String> {
     let leaves: Vec<String> = (0..num_leaves)
@@ -38,37 +37,36 @@ pub fn gen_merkle_proof(leaves: Vec<String>, leaf_pos: usize) -> Vec<Hash32Bytes
 
     let mut _level_pos = leaf_pos;
     for _level in 0..height {
-        // Calculate the sibling position at the current level
-        let sibling_pos = if _level_pos % 2 == 0 {
-            _level_pos + 1
-        } else {
-            _level_pos - 1
-        };
+       //FILL ME IN
+        // If the position is even, the sibling is on the right (pos + 1)
+        // If the position is odd, the sibling is on the left (pos - 1)
+        let sibling_pos = if _level_pos % 2 == 0 { _level_pos + 1 } else { _level_pos - 1 };
 
-        // Calculate the parent position at the next level
-        let parent_pos = _level_pos / 2;
+        // Add the hash of the sibling to the proof
+        hashes.push(state[sibling_pos]);
 
-        // Combine the sibling and current node hashes to form the parent hash
-        let parent_hash = combine_hashes(&state[sibling_pos], &state[_level_pos]);
+        // Initialize the next level state
+        let mut next_state: Vec<Hash32Bytes> = vec![];
 
-        // Add the parent hash to the proof
-        hashes.push(parent_hash);
+        // Hash pairs of nodes to form the next level
+        for i in (0..state.len()).step_by(2) {
+            if i + 1 < state.len() {
+                next_state.push(hash_internal(state[i], state[i+1]));
+            } else {
+                next_state.push(state[i]);
+            }
+        }
+        // Move up to the next level
+        state = next_state;
 
-        // Move to the next level
-        _level_pos = parent_pos;
+        // The position at the next level is half the current position
+        _level_pos /= 2;
     }
 
     // Returns list of hashes that make up the Merkle Proof
     hashes
 }
 
-// Helper function to combine two hash values
-fn combine_hashes(hash1: &Hash32Bytes, hash2: &Hash32Bytes) -> Hash32Bytes {
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(hash1);
-    hasher.update(hash2);
-    hasher.finalize().into()
-}
 
 pub fn run(leaf_position: usize, num_leaves: usize) {
     let file_name = format!("proof_gen_{}_{}.yaml", num_leaves, leaf_position);
